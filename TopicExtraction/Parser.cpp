@@ -18,15 +18,34 @@ void Parser::ParseLine(const char *str) {
             prefixcmp(str, "X-Newsreader: ") == 0 || 
             prefixcmp(str, "In article ") == 0) {
     } else if (prefixcmp(str, "===EOF===") == 0) {
-        if (!cur_article_.empty())
+        if (!cur_article_.empty()) {
+            cur_title_.push_back(str + strlen("===EOF=== "));
             article_handler_->AddArticle(cur_title_, cur_article_, cur_timestamp_);
+        }
+        cur_title_.clear();
         cur_article_.clear();
     } else {
         s = str;
         if (str[0] == '>')
             s++;
-            add_content(s);
+        add_content(s);
     } 
+#endif
+#ifdef AP
+    if (prefixcmp(str, "<DOCNO> ") == 0) { 
+        cur_title_.push_back(str + strlen("<DOCNO> "));
+    }else if (prefixcmp(str, "</DOC>") == 0) {
+        state_ = S_NONE;
+        article_handler_->AddArticle(cur_title_, cur_article_, cur_timestamp_);
+        cur_title_.clear();
+        cur_article_.clear();
+    } else if (prefixcmp(str, "<TEXT>") == 0) {
+        state_ = S_IN_CONTENT;
+    } else {
+        s = str;
+        if (state_ == S_IN_CONTENT) 
+            add_content(s);
+    }
 #endif
 #ifdef REUTERS
     if (prefixcmp(str, "<DATE>") == 0) {

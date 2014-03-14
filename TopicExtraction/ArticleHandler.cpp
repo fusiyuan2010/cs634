@@ -29,7 +29,7 @@ void TFIDFArticleHandler::AddArticle(const std::vector<std::string> &title,
     /* skip too short useless articles */
     if (article.size() < 30)
         return;
-    articles_.emplace_back(Article(article, timestamp));
+    articles_.emplace_back(Article(title, article, timestamp));
 }
 
 
@@ -50,6 +50,8 @@ void TFIDFArticleHandler::GetTFIDF()
 
     for(auto &d : articles_) {
         for(auto &t : d.term_weight_) {
+            if (df_[t.first] < 2)
+                continue;
             t.second *= log(articles_.size() / df_[t.first]);
             d.tfidf_terms_[t.second] = t.first;
         }

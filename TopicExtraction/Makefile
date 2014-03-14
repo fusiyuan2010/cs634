@@ -3,7 +3,7 @@
 OPT=-O2 
 DEBUG=-g
 
-CFLAGS=-std=c++11 -Wall -Wno-format -fPIC $(OPT) $(DEBUG) -DNG
+CFLAGS=-std=c++11 -Wall -Wno-format -fPIC $(OPT) $(DEBUG) -DAP #-DAP #-DNG #-DREUTERS
 CC=g++
 LIBS =
 

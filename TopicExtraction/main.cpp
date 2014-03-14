@@ -5,7 +5,7 @@
 #include "WordTransformer.h"
 #include "ArticleHandler.h"
 #include "TermGraph.h"
-//#include "PLSA.h"
+#include "PLSA.h"
 
 int main(int argc, char *argv[])
 {
@@ -26,10 +26,17 @@ int main(int argc, char *argv[])
     //article_handler.ShowResult();
 
 
+    /*
     TermGraph term_graph;
     term_graph.Import(&article_handler);
     term_graph.SortAndReduce();
     term_graph.ShowResult();
+    */
+    PLSA plsa(50, 5000);
+    plsa.Import(&article_handler);
+    plsa.Compute();
+    plsa.OutputRaw();
+    plsa.Finish();
 
     return 0;
 }

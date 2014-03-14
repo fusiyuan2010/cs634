@@ -47,10 +47,9 @@ std::string SimpleWordTransformer::Transform(const std::string &word) {
     if (!isalpha(word[0]))
         return "";
 
+    /* stemming */
     char *tmpbuf = new char[word.size() + 1];
     strcpy(tmpbuf, word.c_str());
-
-    /* stemming */
     tmpbuf[stem(tmpbuf, 0, word.size() - 1) + 1] = '\0';
     result = word_to_upper(tmpbuf);
     delete[] tmpbuf;

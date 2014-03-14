@@ -18,9 +18,12 @@ class TFIDFArticleHandler : public ArticleHandler {
     std::unordered_map<std::string, int> term_freq_;
     class Article {
     public:
-        Article(const std::vector<std::string> &terms, const time_t &timestamp) 
-            : terms_(terms), timestamp_(timestamp) {}
+        Article(const std::vector<std::string> &title,
+                const std::vector<std::string> &terms,
+                const time_t &timestamp) 
+            : title_(title), terms_(terms), timestamp_(timestamp) {}
             
+        std::vector<std::string> title_;
         std::vector<std::string> terms_;
         time_t timestamp_;
         std::unordered_map<std::string, int> term_freq_;
@@ -44,6 +47,11 @@ public:
     const std::vector<std::string>& GetArticle(size_t i) const
     {
         return articles_[i].terms_;
+    }
+
+    const std::vector<std::string>& GetTitle(size_t i) const
+    {
+        return articles_[i].title_;
     }
 
     const std::map<double, std::string>& GetArticleTFIDFTerms(size_t i) const
