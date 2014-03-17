@@ -32,22 +32,26 @@ public:
 class Parser
 {
 private:
+    enum ParserEnum {
+        kAP,
+        kNewsGroup,
+        kReuters,
+        kIMDB,
+    } parser_type_;
+
     std::vector<std::string> cur_title_;
     std::vector<std::string> cur_article_;
     time_t cur_timestamp_;
     ArticleHandler *article_handler_;
     WordTransformer *word_transformer_;
-
     enum State {
         S_NONE,
         S_IN_CONTENT,
     } state_;
 
+
 public:
-    Parser(ArticleHandler *handler, WordTransformer *transformer) 
-        : article_handler_(handler), word_transformer_(transformer), state_(S_NONE)
-    {
-    }
+    Parser(const char *parser_name, ArticleHandler *handler, WordTransformer *transformer);
 
     void ParseLine(const char *str);
 

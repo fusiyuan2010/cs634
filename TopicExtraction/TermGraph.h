@@ -2,6 +2,8 @@
 #define _TERMGRAPH_H_
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <cstdio>
 
 class TFIDFArticleHandler;
 
@@ -31,12 +33,14 @@ class TermGraph
     };
 
     std::vector<Pair> pairs_;
+    std::unordered_map<std::string, int> freq_;
+    
 public:
     void Clear();
     void Add(const Pair& p);
     void Import(const TFIDFArticleHandler *article_handler);
     void SortAndReduce();
-    void ShowResult();
+    void ShowResult(FILE *f);
 };
 
 #endif

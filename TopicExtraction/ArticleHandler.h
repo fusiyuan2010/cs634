@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <map>
+#include <cstdio>
 
 class SimpleArticleHandler: public ArticleHandler 
 {
@@ -16,6 +17,7 @@ public:
 
 class TFIDFArticleHandler : public ArticleHandler {
     std::unordered_map<std::string, int> term_freq_;
+    int tfidf_fomula_;
     class Article {
     public:
         Article(const std::vector<std::string> &title,
@@ -28,13 +30,16 @@ class TFIDFArticleHandler : public ArticleHandler {
         time_t timestamp_;
         std::unordered_map<std::string, int> term_freq_;
         std::unordered_map<std::string, double> term_weight_;
-        std::map<double, std::string> tfidf_terms_;
+        std::multimap<double, std::string> tfidf_terms_;
     };
 
     std::vector<Article> articles_;
     std::unordered_map<std::string, int> df_;
 
 public:
+    TFIDFArticleHandler(int tfidf_fomula)
+        : tfidf_fomula_(tfidf_fomula) {}
+
     void AddArticle(const std::vector<std::string> &title,
             const std::vector<std::string> &article,
             time_t timestamp);
@@ -54,13 +59,13 @@ public:
         return articles_[i].title_;
     }
 
-    const std::map<double, std::string>& GetArticleTFIDFTerms(size_t i) const
+    const std::multimap<double, std::string>& GetArticleTFIDFTerms(size_t i) const
     {
         return articles_[i].tfidf_terms_;
     }
 
     void GetTFIDF();
-    void ShowResult();
+    void ShowResult(FILE *f);
 };
 
 

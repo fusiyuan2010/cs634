@@ -1,6 +1,7 @@
 #include "ArticleHandler.h"
 #include <cstdio>
 #include <cmath>
+#include <cstring>
 
 void SimpleArticleHandler::AddArticle(const std::vector<std::string> &title,
                                       const std::vector<std::string> &article,
@@ -27,7 +28,12 @@ void TFIDFArticleHandler::AddArticle(const std::vector<std::string> &title,
 {
     /* currently title is not used */
     /* skip too short useless articles */
-    if (article.size() < 30)
+    double avg_len = 0;
+    for(const auto &t : article) {
+        avg_len += t.size();
+    }
+    avg_len /= (double)article.size();
+    if (article.size() < 10 || avg_len <= 4.5)
         return;
     articles_.emplace_back(Article(title, article, timestamp));
 }
@@ -44,28 +50,37 @@ void TFIDFArticleHandler::GetTFIDF()
 
         for(const auto &t: d.term_freq_) {
             df_[t.first]++;
-            d.term_weight_[t.first] = 0.5 + 0.5 * t.second / max_term_freq;
+            if (tfidf_fomula_ == 1)
+                d.term_weight_[t.first] = t.second;
+            else if (tfidf_fomula_ == 2)
+                d.term_weight_[t.first] = 0.5 + 0.5 * t.second / max_term_freq;
+            else 
+                d.term_weight_[t.first] = 1;
         }
     }
 
     for(auto &d : articles_) {
         for(auto &t : d.term_weight_) {
-            if (df_[t.first] < 2)
+            if (df_[t.first] < 3)
                 continue;
             t.second *= log(articles_.size() / df_[t.first]);
-            d.tfidf_terms_[t.second] = t.first;
+            d.tfidf_terms_.insert(make_pair(t.second, t.first));
         }
     }
 }
 
-void TFIDFArticleHandler::ShowResult() {
+void TFIDFArticleHandler::ShowResult(FILE *f) {
     for(auto &d : articles_) {
         int i = 0;
-        printf("==========================\nTime stamp: %ld\n", d.timestamp_);
+        fprintf(f, "==========================\nTime stamp: %ld\n", d.timestamp_);
+        fprintf(f, "Title: ");
+        for(const auto &s : d.title_) 
+            fprintf(f, "%s ", s.c_str());
+        fprintf(f, "\n");
         for(std::map<double, std::string>::const_reverse_iterator it = d.tfidf_terms_.rbegin();
                 it != d.tfidf_terms_.rend(); ++it) {
-            if (++i < 10)
-                printf("%s : %lf\n", it->second.c_str(), it->first);
+            if (++i < 20)
+                fprintf(f, "%s : %lf\n", it->second.c_str(), it->first);
         }
     }
 }

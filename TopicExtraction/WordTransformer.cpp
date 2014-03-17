@@ -38,7 +38,7 @@ std::string SimpleWordTransformer::Transform(const std::string &word) {
         }
     }
     /* contains too much non_alpha char */
-    if (nonalpha_count > 0.6 * result.size())
+    if (nonalpha_count > 0.3 * result.size())
         return "";
 
     if (function_words_.count(result) > 0)

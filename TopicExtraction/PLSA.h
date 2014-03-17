@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <cstdio>
 
 class TFIDFArticleHandler;
 
@@ -22,16 +23,20 @@ class PLSA {
 
     int d;
     int w;
-    int iteration_max;
     int iteration_min;
+    int iteration_max;
     int z;
-    constexpr static const double tol = 0.001;
+    double tol;
 public:
-    PLSA(int _feature_num = 50, int _iteration_min = 2000)
-        : iteration_min(_iteration_min),z(_feature_num) {}
+    PLSA(int _feature_num, int _iteration_min,
+            int _iteration_max, double _tol = 0.001)
+        : iteration_min(_iteration_min),
+        iteration_max(_iteration_max),
+        z(_feature_num),
+        tol(_tol) {}
     void Import(const TFIDFArticleHandler *article_handler);
     void Compute();
-    void OutputRaw();
+    void OutputRaw(FILE *f);
     void Finish();
 };
 

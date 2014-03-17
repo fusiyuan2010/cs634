@@ -8,6 +8,7 @@
 #include <chrono>
 #include <random>
 #include <algorithm>
+#include <map>
 
 using namespace std;
 
@@ -158,12 +159,12 @@ void PLSA::Import(const TFIDFArticleHandler *article_handler)
 {
     int term_id = 0;
     for(size_t i = 0; i < article_handler->size(); i++) {
-        const std::map<double, std::string>& terms = article_handler->GetArticleTFIDFTerms(i);
+        const std::multimap<double, std::string>& terms = article_handler->GetArticleTFIDFTerms(i);
         int limit = 0;
         vector<pair<int, int>> doc; 
         for(std::map<double, std::string>::const_reverse_iterator it = terms.rbegin();
-                it != terms.rend() && ++limit != 50; it++) {
-            int w = it->first * 2;
+                it != terms.rend() && ++limit != 30; it++) {
+            int w = it->first;
             if (w == 0) 
                 w = 1;
             if (term_id_.count(it->second) > 0) 
@@ -190,9 +191,15 @@ void PLSA::Compute()
     train();
 }
 
-void PLSA::OutputRaw() {
-    FILE* file_dz = fopen("plsa_result.txt", "w");
+void PLSA::OutputRaw(FILE *file_dz) {
+    std::multimap<double, int> sorted_z;
+
     for (int zi = 0; zi < z; zi ++) {
+        sorted_z.insert(make_pair(p_z[zi], zi));
+    }
+
+    for (const auto &t: sorted_z) {
+        int zi = t.second;
         fprintf(file_dz, "feature z%02d = %f\n", zi, p_z[zi]);
 
         std::vector<std::pair<int, double>> id_p;
@@ -202,7 +209,7 @@ void PLSA::OutputRaw() {
         sort(id_p.begin(), id_p.end(), 
                 [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
         for(size_t i = 0; i < id_p.size() && i < 20; i++) {
-            fprintf(file_dz, "\t\t%s:%.2f\n", id_term_[id_p[i].first].c_str(), id_p[i].second);
+            fprintf(file_dz, "\t\t%s:%f\n", id_term_[id_p[i].first].c_str(), id_p[i].second);
         }
         fprintf(file_dz, "\n");
         id_p.clear();
@@ -217,15 +224,6 @@ void PLSA::OutputRaw() {
             fprintf(file_dz, "\t\t%s:%f\n", id_title_[id_p[i].first].c_str(), id_p[i].second);
         }
         fprintf(file_dz, "\n");
-
-        /*
-        for (int di = 0; di < d; di ++) {
-            if (di > 0) fprintf(file_dz, " ");
-            fprintf(file_dz, "%f", p_dz[di * z + zi]);
-        }
-        fprintf(file_dz, "\n");
-        */
     }
-    fclose(file_dz);
 }
 
