@@ -54,6 +54,8 @@ std::string SimpleWordTransformer::Transform(const std::string &word) {
     result = word_to_upper(tmpbuf);
     delete[] tmpbuf;
 
+    if (function_words_.count(result) > 0)
+        return "";
     /* 
     stemming::english_stem<> StemEnglish;
     wchar_t wbuf[64];

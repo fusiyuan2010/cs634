@@ -79,7 +79,7 @@ void TFIDFArticleHandler::ShowResult(FILE *f) {
         fprintf(f, "\n");
         for(std::map<double, std::string>::const_reverse_iterator it = d.tfidf_terms_.rbegin();
                 it != d.tfidf_terms_.rend(); ++it) {
-            if (++i < 20)
+            if (++i <= 20)
                 fprintf(f, "%s : %lf\n", it->second.c_str(), it->first);
         }
     }
