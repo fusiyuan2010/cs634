@@ -31,6 +31,7 @@ class TFIDFArticleHandler : public ArticleHandler {
         std::unordered_map<std::string, int> term_freq_;
         std::unordered_map<std::string, double> term_weight_;
         std::multimap<double, std::string> tfidf_terms_;
+        std::multimap<double, std::string> freq_terms_;
     };
 
     std::vector<Article> articles_;
@@ -62,6 +63,16 @@ public:
     const std::multimap<double, std::string>& GetArticleTFIDFTerms(size_t i) const
     {
         return articles_[i].tfidf_terms_;
+    }
+
+    const std::multimap<double, std::string>& GetArticleFreqTerms(size_t i) const
+    {
+        return articles_[i].freq_terms_;
+    }
+
+    const std::unordered_map<std::string, int>& GetArticleTermFreq(size_t i) const
+    {
+        return articles_[i].term_freq_;
     }
 
     void GetTFIDF();

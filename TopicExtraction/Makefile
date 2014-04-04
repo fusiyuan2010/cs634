@@ -7,7 +7,7 @@ CFLAGS=-std=c++11 -Wall -Wno-format -fPIC $(OPT) $(DEBUG) -DNG #-DAP #-DNG #-DRE
 CC=g++
 LIBS =
 
-OBJS=Parser.o ArticleHandler.o TermGraph.o WordTransformer.o porter_stemmer.o main.o PLSA.o
+OBJS=Parser.o ArticleHandler.o TermGraph.o WordTransformer.o porter_stemmer.o main.o PLSA.o LDA.o
 
 all: topic_analyzer
 

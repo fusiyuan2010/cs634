@@ -1,5 +1,7 @@
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <ctime>
 #include <getopt.h>
 
 #include "Parser.h"
@@ -7,6 +9,7 @@
 #include "ArticleHandler.h"
 #include "TermGraph.h"
 #include "PLSA.h"
+#include "LDA.h"
 
 void print_usage(int argc, char *argv[])
 {
@@ -16,10 +19,11 @@ void print_usage(int argc, char *argv[])
            "\t--parser <ap|reuters|newsgroup|imdb> [default: ap],  use what kind of parser\n"
            "\t--plsa <1|0> [default: 0],  do plsa computing\n"
            "\t--plsa_threshold <float_number> [default: 10],  stop condition for iteration\n"
-           "\t--plsa_iter_min <int_number> [default: 100],  min iteration times\n"
-           "\t--plsa_iter_max <int_number> [default: 10000],  max iteration times\n"
-           "\t--plsa_topic_num <int_number> [default: 30],  latent topics assumed\n"
+           "\t--iter_min <int_number> [default: 100],  min iteration times\n"
+           "\t--iter_max <int_number> [default: 10000],  max iteration times\n"
+           "\t--topic_num <int_number> [default: 30],  latent topics assumed\n"
            "\t--term_graph <1|0> [default: 0],  do term similarity computing\n"
+           "\t--lda <1|0> [default: 0],  do LDA(ecgs) computing\n"
            "\t--tfidf_fomula <1|2> [default: 1],  use what kind of tfidf_fomula\n", 
            argv[0]);
 }
@@ -30,26 +34,28 @@ int main(int argc, char *argv[])
     const char *dir = "./output/";
     const char *parser_name = "ap";
     const char *function_words = nullptr;
-    int plsa_iter_min = 100;
-    int plsa_iter_max = 10000;
+    int iter_min = 100;
+    int iter_max = 10000;
     double plsa_threshold = 10;
     int do_plsa = 0;
+    int do_lda = 0;
     int do_term_graph = 0;
     int tfidf_fomula = 1;
-    int plsa_topic_num = 30;
+    int topic_num = 30;
     
 
     static struct option long_options[] = {
             {"dir",     required_argument, 0,  'a' },
-            {"plsa_iter_max",  required_argument,       0,  'b' },
-            {"plsa_iter_min",  required_argument, 0,  'c' },
+            {"iter_max",  required_argument,       0,  'b' },
+            {"iter_min",  required_argument, 0,  'c' },
             {"plsa_threshold",  required_argument, 0,  'd' },
             {"plsa",  required_argument, 0,  'e' },
             {"term_graph",  required_argument, 0,  'f' },
             {"tfidf_fomula",  required_argument, 0,  'g' },
             {"parser",  required_argument, 0,  'h' },
             {"function_words",  required_argument, 0,  'i' },
-            {"plsa_topic_num",  required_argument, 0,  'j' },
+            {"topic_num",  required_argument, 0,  'j' },
+            {"lda",  required_argument, 0,  'k' },
             {0,         0,                 0,  0 }
         };
 
@@ -61,10 +67,10 @@ int main(int argc, char *argv[])
                 dir = optarg;
                 break;
             case 'b':
-                plsa_iter_max = atoi(optarg);
+                iter_max = atoi(optarg);
                 break;
             case 'c':
-                plsa_iter_min = atoi(optarg);
+                iter_min = atoi(optarg);
                 break;
             case 'd':
                 plsa_threshold = atof(optarg);
@@ -85,7 +91,10 @@ int main(int argc, char *argv[])
                 function_words = optarg;
                 break;
             case 'j':
-                plsa_topic_num = atoi(optarg);
+                topic_num = atoi(optarg);
+                break;
+            case 'k':
+                do_lda = atoi(optarg);
                 break;
             default:
                 print_usage(argc, argv);
@@ -93,6 +102,8 @@ int main(int argc, char *argv[])
                 break;
         }
     }
+    srand(time(NULL));
+
     FILE *f = nullptr;
     char filename[128];
     snprintf(filename, 128, "%s/arguments.txt", dir);
@@ -102,10 +113,10 @@ int main(int argc, char *argv[])
         return 1;
     }
     fprintf(f, "plsa = %d\n", do_plsa);
-    fprintf(f, "plsa_topic_num = %d\n", plsa_topic_num);
+    fprintf(f, "topic_num = %d\n", topic_num);
     fprintf(f, "plsa_threshold = %f\n", plsa_threshold);
-    fprintf(f, "plsa_iter_max = %d\n", plsa_iter_max);
-    fprintf(f, "plsa_iter_min = %d\n", plsa_iter_min);
+    fprintf(f, "iter_max = %d\n", iter_max);
+    fprintf(f, "iter_min = %d\n", iter_min);
     fprintf(f, "tfidf_fomula = %d\n", tfidf_fomula);
     fclose(f);
 
@@ -148,13 +159,20 @@ int main(int argc, char *argv[])
         snprintf(filename, 128, "%s/plsa_result.txt", dir);
         f = fopen(filename, "w");
 
-        PLSA plsa(plsa_topic_num, plsa_iter_min, plsa_iter_max, plsa_threshold);
+        PLSA plsa(topic_num, iter_min, iter_max, plsa_threshold);
         plsa.Import(&article_handler);
         plsa.Compute();
         plsa.OutputRaw(f);
         plsa.Finish();
 
         fclose(f);
+    }
+
+    if (do_lda) {
+        LDA lda(dir, 50 / topic_num, 0.1, topic_num, 1, iter_max);
+        lda.Import(&article_handler);
+        lda.Compute();
+        lda.Finish();
     }
 
     printf("Done\n");

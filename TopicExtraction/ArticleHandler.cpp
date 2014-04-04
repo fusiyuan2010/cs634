@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cmath>
 #include <cstring>
+#include <utility>
 
 void SimpleArticleHandler::AddArticle(const std::vector<std::string> &title,
                                       const std::vector<std::string> &article,
@@ -36,6 +37,9 @@ void TFIDFArticleHandler::AddArticle(const std::vector<std::string> &title,
     if (article.size() < 10 || avg_len <= 4.5)
         return;
     articles_.emplace_back(Article(title, article, timestamp));
+    int i = rand() % articles_.size();
+    /* reorder */
+    std::swap(articles_[i], articles_[articles_.size() - 1]);
 }
 
 
@@ -56,14 +60,17 @@ void TFIDFArticleHandler::GetTFIDF()
                 d.term_weight_[t.first] = 0.5 + 0.5 * t.second / max_term_freq;
             else 
                 d.term_weight_[t.first] = 1;
+            d.freq_terms_.insert(make_pair(t.second, t.first));
         }
     }
 
     for(auto &d : articles_) {
         for(auto &t : d.term_weight_) {
-            if (df_[t.first] < 3)
-                continue;
-            t.second *= log(articles_.size() / df_[t.first]);
+            if (tfidf_fomula_ != 3)  {
+                if (df_[t.first] < 3)
+                    continue;
+                t.second *= log(articles_.size() / df_[t.first]);
+            }
             d.tfidf_terms_.insert(make_pair(t.second, t.first));
         }
     }

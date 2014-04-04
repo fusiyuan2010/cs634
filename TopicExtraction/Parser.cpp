@@ -95,12 +95,15 @@ void Parser::ParseLine(const char *str) {
             break;
         case kIMDB:
             if (prefixcmp(str, "MV:") == 0) {
+                cur_title_.push_back(str + 4);
                 state_ = S_IN_CONTENT;
             } else if (prefixcmp(str, "PL:") == 0 && state_ == S_IN_CONTENT) {
                 s = str + 4;
                 add_content(s);
             } else if (prefixcmp(str, "BY:") == 0) {
-                article_handler_->AddArticle(cur_title_, cur_article_, cur_timestamp_);
+                /* ignore series programs */
+                if (cur_title_.size() > 0 && cur_title_[0].find('{') == std::string::npos)
+                    article_handler_->AddArticle(cur_title_, cur_article_, cur_timestamp_);
                 state_ = S_NONE;
                 cur_title_.clear();
                 cur_article_.clear();
