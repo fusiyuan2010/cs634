@@ -17,6 +17,7 @@ Parser::Parser(const char *parser_name, ArticleHandler *handler, WordTransformer
         parser_type_ = kIMDB;
     else
         parser_type_ = kAP;
+    cur_timestamp_ = time(NULL);
 }
 #define prefixcmp(a, b) strncmp(a, b, strlen(b))
 

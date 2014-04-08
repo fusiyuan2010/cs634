@@ -321,7 +321,8 @@ int stem(char * p, int i, int j)
       published algorithm. Remove the line to match the published
       algorithm. */
 
-   step1ab(); step1c(); //step2(); step3(); //step4(); step5();
+   step1ab(); /* step1c(); */ 
+   step2(); //step3(); //step4(); step5();
    return k;
 }
 

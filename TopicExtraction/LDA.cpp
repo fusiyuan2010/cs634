@@ -135,6 +135,9 @@ int LDA::drawMultinomial(int cdf[], int len)
 	return result;
 }
 
+
+
+
 int LDA::init_est()
 {
 	int m, n, w, k;
@@ -192,6 +195,8 @@ int LDA::init_est()
 			z[m][n] = new int[weight];
 			if (weight > TRIGGER -1)
 				samplestep[m][n] = new int[weight]; //sampling step
+            else
+                samplestep[m][n] = nullptr;
 			for (int q = 0; q < weight; q++)
 			{
 				if (weight > TRIGGER -1)
@@ -228,6 +233,9 @@ int LDA::init_est()
 		phi[k] = new float[V];
 	}
 
+    pw = new double[V];
+
+
 	Vbeta = V * beta;
 	Kalpha = K * alpha;
 	return 0;
@@ -235,15 +243,6 @@ int LDA::init_est()
 
 void LDA::estimate()
 {
-
-    /*
-	if (twords > 0)
-	{
-		// print out top words per topic
-		dataset::read_wordmap(dir + wordmapfile, &id2word);
-	}
-    */
-
 	printf("|Dynamic sampling\n|Dumping factor: %d\n| %d iterations!\n", gamma,niters);
 	gettimeofday(&start, 0);
 	int last_iter = liter;
@@ -370,7 +369,6 @@ void LDA::compute_theta()
 			theta[m][k] = (nd[m][k] + alpha) / (ndsum[m] + Kalpha);
 
 		}
-
 	}
 }
 
@@ -383,6 +381,12 @@ void LDA::compute_phi()
 			phi[k][w] = (nw[w][k] + beta) / (nwsum[k] + Vbeta);
 		}
 	}
+
+    for(int w = 0; w < V; w++) {
+        pw[w] = 0;
+        for(int k = 0; k < K; k++)
+            pw[w] += phi[k][w];
+    }
 }
 
 void LDA::save_model(int iter) 
@@ -391,17 +395,55 @@ void LDA::save_model(int iter)
     snprintf(filename, 128, "%s/lda_iter_%d.txt", dir, iter);
     FILE *f = fopen(filename, "w");
 
+    std::multimap<double, int> sorted_fea;
     for(int z = 0; z < K; z++) {
-        fprintf(f, "Topic %2d:\n", z);
+        std::vector<std::pair<int, double>> id_p;
+        for (int wi = 0; wi < V; wi ++) 
+            id_p.push_back(make_pair(wi, phi[z][wi]));
 
+        sort(id_p.begin(), id_p.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+
+        double total_rate = 0;
+        for(size_t i = 0; i < id_p.size() && i < 30; i++) {
+            double c = pow(8, phi[z][id_p[i].first] / pw[id_p[i].first]) * 12.5;
+            total_rate += c;
+        }
+        total_rate /= 30;
+        //total_rate /= (1 + 50) * 25;
+
+        sorted_fea.insert(make_pair(total_rate, z));
+    }
+
+    int rank = 0;
+    for(std::multimap<double, int>::reverse_iterator zit = sorted_fea.rbegin();
+            zit != sorted_fea.rend(); zit++, rank++) {
+        int z = zit->second;
+        fprintf(f, "Rank:%d - Topic %2d ( innerw: %f ):\n", rank, z, zit->first);
         std::vector<std::pair<int, double>> id_p;
         for (int wi = 0; wi < V; wi ++) {
-            id_p.push_back(make_pair(wi, phi[z][wi]));
+            id_p.push_back(make_pair(wi, 
+                        phi[z][wi] * (phi[z][wi] / pw[wi])
+                        * (phi[z][wi] / pw[wi]) * 100));
         }
         sort(id_p.begin(), id_p.end(), 
                 [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
-        for(size_t i = 0; i < id_p.size() && i < 20; i++) {
-            fprintf(f, "\t\t%s:%f\n", id_term_[id_p[i].first].c_str(), id_p[i].second);
+        int twords = 0;
+        for(size_t i = 0; i < id_p.size() && twords < 20; i++) {
+            fprintf(f, "\t\t%s:%f ( %.2f%% ) \n",
+                    id_term_[id_p[i].first].c_str(), phi[z][id_p[i].first],
+                    phi[z][id_p[i].first] * 100 / pw[id_p[i].first]);
+            twords++;
+            /*
+            fprintf(f, "\t\t%s:%f\t\t\t%s:%f\n",
+                    id_term_[id_p[i].first].c_str(), id_p[i].second,
+                    id_term_[id_p2[i].first].c_str(), id_p2[i].second);
+            fprintf(f, "\t\t\t\t");
+            for(int k = 0; k < K; k++) {
+                fprintf(f, "%.4f  ", phi[k][id_p[i].first]);
+            }
+            fprintf(f, "\n");
+            */
         }
         fprintf(f, "\n");
         id_p.clear();
@@ -417,7 +459,6 @@ void LDA::save_model(int iter)
         }
         fprintf(f, "\n");
     }
-    
 
     fclose(f);
 }
@@ -434,9 +475,7 @@ LDA::LDA(const char *_dir, double _alpha, double _beta, int ntopics, int _gamma,
     liter = 0;
 }
 
-#define TERMTOP 30
-
-void LDA::Import(const TFIDFArticleHandler *article_handler)
+void LDA::Import(const TFIDFArticleHandler *article_handler, double TERMTOP)
 {
  	ptrndata = new dataset(article_handler->size());
 
@@ -446,13 +485,16 @@ void LDA::Import(const TFIDFArticleHandler *article_handler)
         int limit = 0;
         document *doc = new document;
 
-        doc->length = std::min(TERMTOP, (int)(terms.size()));
+        if (TERMTOP > 1)
+            doc->length = std::min((int)TERMTOP, (int)(terms.size()));
+        else
+            doc->length = terms.size() * TERMTOP;
         doc->words = new int[doc->length];
         doc->weights = new int[doc->length];
 
 
         for(std::map<double, std::string>::const_reverse_iterator it = terms.rbegin();
-                it != terms.rend() && limit < TERMTOP; it++, limit++) {
+                it != terms.rend() && limit < doc->length; it++, limit++) {
             auto it2 = (article_handler->GetArticleTermFreq(i)).find(it->second);
             int w;
             if (it2 != article_handler->GetArticleTermFreq(i).end()) 
@@ -494,4 +536,35 @@ void LDA::Compute()
 
 void LDA::Finish()
 {
+    delete[] p;
+    delete[] c;
+
+    for(int w = 0; w < V; w++)
+        delete[] nw[w];
+
+    delete[] nw;
+    delete[] nwsum;
+
+    for (int m = 0; m < ptrndata->M; m++) {
+        int N = ptrndata->docs[m]->length; //be careful of this N!!!
+        delete[] nd[m];
+        for (int n = 0; n < N; n++) {
+            delete[] z[m][n];
+            delete[] samplestep[m][n];
+        }
+        delete[] z[m];
+        delete[] samplestep[m];
+        delete[] theta[m];
+    }
+
+    for(int k = 0; k < K; k++)
+        delete[] phi[k];
+
+    delete[] phi;
+    delete[] theta;
+    delete[] samplestep;
+
+    delete[] nd;
+    delete[] z;
+    delete[] pw;
 }

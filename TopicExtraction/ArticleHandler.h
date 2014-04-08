@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <map>
 #include <cstdio>
+#include <climits>
 
 class SimpleArticleHandler: public ArticleHandler 
 {
@@ -75,6 +76,16 @@ public:
         return articles_[i].term_freq_;
     }
 
+    int GetDocumentFreq(const std::string& s) const
+    {
+        std::unordered_map<std::string, int>::const_iterator it;
+        it = df_.find(s);
+        if (it == df_.end())
+            return INT_MAX;
+        else
+            return it->second;
+    }
+    
     void GetTFIDF();
     void ShowResult(FILE *f);
 };

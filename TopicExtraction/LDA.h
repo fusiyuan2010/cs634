@@ -15,6 +15,7 @@ public:
     int * weights;
     std::string title;
     int length;
+    int topicid;
 
      ~document() {
         if (words) {
@@ -109,10 +110,14 @@ class LDA {
 //    void foldin(int m);
     void save_model(int iter);
 
+    //Added By SiyuanFu
+    /* weight on each topic per word*/
+    double *pw;
+
 public:
     LDA(const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters);
 
-    void Import(const TFIDFArticleHandler *article_handler);
+    void Import(const TFIDFArticleHandler *article_handler, double TERMTOP);
     void Compute();
     void Finish();
 
