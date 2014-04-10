@@ -2,6 +2,7 @@
 #include "math.h"
 
 #include "ArticleHandler.h"
+#include "TopicManager.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <algorithm>
@@ -95,7 +96,7 @@ int LDA::drawMultinomial(float cdf[], int len)
 	while (low <= high)
 	{
 		result = (high + low) / 2;
-		if (u > cdf[result - 1] && u < cdf[result])
+		if ((result == 0) || (u > cdf[result - 1] && u < cdf[result]))
 			break;
 		if (u < cdf[result - 1])
 		{
@@ -233,8 +234,8 @@ int LDA::init_est()
 		phi[k] = new float[V];
 	}
 
-    pw = new double[V];
-
+    pwsum = new double[V];
+    pwsd = new double[V];
 
 	Vbeta = V * beta;
 	Kalpha = K * alpha;
@@ -327,6 +328,10 @@ void LDA::estimate()
 						uniqueNum += c[k];
 						c[k] = 0;
 					}
+                    if (uniqueNum >= ptrndata->docs[m]->weights[n]) {
+                        /* force change to avoid crash */
+                        uniqueNum--;
+                    }
 					samplestep[m][n][uniqueNum] += 1;
 				}
 			}
@@ -382,11 +387,42 @@ void LDA::compute_phi()
 		}
 	}
 
+    /*
     for(int w = 0; w < V; w++) {
         pw[w] = 0;
         for(int k = 0; k < K; k++)
             pw[w] += phi[k][w];
     }
+    */
+
+    std::vector<std::pair<int, double>> id_p;
+    for(int w = 0; w < V; w++) {
+        double t = 0, d = 0;
+        for(int k = 0; k < K; k++)
+            t += phi[k][w];
+        pwsum[w] = t;
+        t /= K;
+        for(int k = 0; k < K; k++)
+            d += abs(phi[k][w] - t);//* (phi[k][w] - t);
+        d = (d / K) / t;
+        pwsd[w] = d;
+        id_p.push_back(make_pair(w, pwsd[w]));
+    }
+
+    sort(id_p.begin(), id_p.end(), 
+        [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+    max_sd = id_p[0].second;
+
+    char filename[128];
+    snprintf(filename, 128, "%s/termsd.txt", dir);
+    FILE *f = fopen(filename, "w");
+    for(auto &c : id_p) {
+        fprintf(f, "%s\t\t%f == ", id_term_[c.first].c_str(), c.second);
+        for(int k = 0; k < K; k++) 
+            fprintf(f, "%d:%f\t", k, phi[k][c.first]);
+        fprintf(f, "\n");
+    }
+    fclose(f);
 }
 
 void LDA::save_model(int iter) 
@@ -398,21 +434,41 @@ void LDA::save_model(int iter)
     std::multimap<double, int> sorted_fea;
     for(int z = 0; z < K; z++) {
         std::vector<std::pair<int, double>> id_p;
-        for (int wi = 0; wi < V; wi ++) 
+        for (int wi = 0; wi < V; wi ++) { 
             id_p.push_back(make_pair(wi, phi[z][wi]));
+        }
 
         sort(id_p.begin(), id_p.end(), 
                 [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
 
         double total_rate = 0;
+        double sampled = 0;
         for(size_t i = 0; i < id_p.size() && i < 30; i++) {
-            double c = pow(8, phi[z][id_p[i].first] / pw[id_p[i].first]) * 12.5;
-            total_rate += c;
-        }
-        total_rate /= 30;
-        //total_rate /= (1 + 50) * 25;
+            double c1 = pwsd[id_p[i].first] / max_sd;
+            double c2 = phi[z][id_p[i].first] / pwsum[id_p[i].first];
+            total_rate += (c1 * 0.5  + c2 * 0.5) * phi[z][id_p[i].first];
+            sampled += phi[z][id_p[i].first];
+        } 
+        total_rate /= sampled;
+        id_p.clear();
 
-        sorted_fea.insert(make_pair(total_rate, z));
+
+        for(int di = 0; di < M; di++) {
+            id_p.push_back(make_pair(di, theta[di][z]));
+        }
+        sort(id_p.begin(), id_p.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+
+        double total_rate2 = 0;
+        sampled = 0;
+        for(size_t i = 0; i < unsigned(M / K); i++) {
+            total_rate2 += id_p[i].second;
+            sampled++;
+        }
+        total_rate2 /= sampled;
+        id_p.clear();
+
+        sorted_fea.insert(make_pair((total_rate + total_rate2) / 2 * 100, z));
     }
 
     int rank = 0;
@@ -420,30 +476,29 @@ void LDA::save_model(int iter)
             zit != sorted_fea.rend(); zit++, rank++) {
         int z = zit->second;
         fprintf(f, "Rank:%d - Topic %2d ( innerw: %f ):\n", rank, z, zit->first);
-        std::vector<std::pair<int, double>> id_p;
+        std::vector<std::pair<int, double>> id_p, id_p2;
         for (int wi = 0; wi < V; wi ++) {
             id_p.push_back(make_pair(wi, 
-                        phi[z][wi] * (phi[z][wi] / pw[wi])
-                        * (phi[z][wi] / pw[wi]) * 100));
+                        (phi[z][wi] / pwsum[wi] * 0.5 +  pwsd[wi] / max_sd * 0.5) * 100));
+            id_p2.push_back(make_pair(wi, phi[z][wi]));
         }
         sort(id_p.begin(), id_p.end(), 
                 [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+        sort(id_p2.begin(), id_p2.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
         int twords = 0;
         for(size_t i = 0; i < id_p.size() && twords < 20; i++) {
-            fprintf(f, "\t\t%s:%f ( %.2f%% ) \n",
-                    id_term_[id_p[i].first].c_str(), phi[z][id_p[i].first],
-                    phi[z][id_p[i].first] * 100 / pw[id_p[i].first]);
+            int wi = id_p[i].first;
+            fprintf(f, "\t\t%s:%f (raw: %f, pwsd:%.2f%%, %.2f%%) \t\t\t\t\t%s:%f\n",
+                    id_term_[wi].c_str(),
+                    id_p[i].second,
+                    phi[z][wi],
+                    pwsd[wi] * 100 / max_sd,
+                    phi[z][wi] / pwsum[wi] * 100,
+                    
+                    id_term_[id_p2[i].first].c_str(), phi[z][id_p2[i].first]
+                    );
             twords++;
-            /*
-            fprintf(f, "\t\t%s:%f\t\t\t%s:%f\n",
-                    id_term_[id_p[i].first].c_str(), id_p[i].second,
-                    id_term_[id_p2[i].first].c_str(), id_p2[i].second);
-            fprintf(f, "\t\t\t\t");
-            for(int k = 0; k < K; k++) {
-                fprintf(f, "%.4f  ", phi[k][id_p[i].first]);
-            }
-            fprintf(f, "\n");
-            */
         }
         fprintf(f, "\n");
         id_p.clear();
@@ -566,5 +621,62 @@ void LDA::Finish()
 
     delete[] nd;
     delete[] z;
-    delete[] pw;
+    delete[] pwsum;
+    delete[] pwsd;
+    delete[] ndsum;
+    delete ptrndata;
 }
+
+void LDA::Export(TopicManager *tm)
+{
+    /*
+    std::multimap<double, int> sorted_fea;
+    for(int z = 0; z < K; z++) {
+        std::vector<std::pair<int, double>> id_p;
+        for (int wi = 0; wi < V; wi ++) 
+            id_p.push_back(make_pair(wi, phi[z][wi]));
+
+        sort(id_p.begin(), id_p.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+
+        double total_rate = 0;
+        for(size_t i = 0; i < id_p.size() && i < 30; i++) {
+            double c = pow(8, phi[z][id_p[i].first] / pw[id_p[i].first]) * 12.5;
+            total_rate += c;
+        }
+        total_rate /= 30;
+        //total_rate /= (1 + 50) * 25;
+
+        sorted_fea.insert(make_pair(total_rate, z));
+    }
+
+    int rank = 0;
+    for(std::multimap<double, int>::reverse_iterator zit = sorted_fea.rbegin();
+            zit != sorted_fea.rend(); zit++, rank++) {
+        int z = zit->second;
+        fprintf(f, "Rank:%d - Topic %2d ( innerw: %f ):\n", rank, z, zit->first);
+        std::vector<std::pair<int, double>> id_p;
+        for (int wi = 0; wi < V; wi ++) {
+            id_p.push_back(make_pair(wi, 
+                        phi[z][wi] * (phi[z][wi] / pw[wi])
+                        * (phi[z][wi] / pw[wi]) * 100));
+        }
+        sort(id_p.begin(), id_p.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+        int twords = 0;
+        for(size_t i = 0; i < id_p.size() && twords < 20; i++) {
+            fprintf(f, "\t\t%s:%f ( %.2f%% ) \n",
+                    id_term_[id_p[i].first].c_str(), phi[z][id_p[i].first],
+                    phi[z][id_p[i].first] * 100 / pw[id_p[i].first]);
+            twords++;
+
+        }
+        fprintf(f, "\n");
+        id_p.clear();
+    }
+
+    fclose(f);
+    */
+
+}
+

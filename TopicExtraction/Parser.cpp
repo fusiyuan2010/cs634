@@ -24,6 +24,19 @@ Parser::Parser(const char *parser_name, ArticleHandler *handler, WordTransformer
 void Parser::ParseLine(const char *str) {
     const char *s = NULL;
     
+    if (prefixcmp(str, "PARSERCHANGETOAP") == 0) {
+        parser_type_ = kAP;
+        return;
+    } else if (prefixcmp(str, "PARSERCHANGETONG") == 0) {
+        parser_type_ = kNewsGroup;
+        return;
+    } else if (prefixcmp(str, "PARSERCHANGETOREUTERS") == 0) {
+        parser_type_ = kReuters;
+        return;
+    } else if (prefixcmp(str, "PARSERCHANGETOIMDB") == 0) {
+        parser_type_ = kIMDB;
+        return;
+    } 
     switch(parser_type_) {
         case kNewsGroup:
             if (prefixcmp(str, "From: ") == 0) {

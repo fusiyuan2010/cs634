@@ -8,6 +8,7 @@
 #include <cstdio>
 
 class TFIDFArticleHandler;
+class TopicManager;
 
 class document {
 public:
@@ -19,10 +20,10 @@ public:
 
      ~document() {
         if (words) {
-            delete words;
+            delete[] words;
         }
         if (weights) {
-            delete weights;
+            delete[] weights;
         }
     }
 };
@@ -47,12 +48,12 @@ public:
     }   
     
     ~dataset() {
-	if (docs) {
-	    for (int i = 0; i < M; i++) {
-		delete docs[i];
-	    }
-	}
-	delete docs;
+        if (docs) {
+            for (int i = 0; i < M; i++) {
+            delete docs[i];
+            }
+        }
+        delete[] docs;
     }
     
     void add_doc(document * doc, int idx) {
@@ -112,13 +113,16 @@ class LDA {
 
     //Added By SiyuanFu
     /* weight on each topic per word*/
-    double *pw;
+    double *pwsum;
+    double *pwsd;
+    double max_sd;
 
 public:
     LDA(const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters);
 
     void Import(const TFIDFArticleHandler *article_handler, double TERMTOP);
     void Compute();
+    void Export(TopicManager *tm);
     void Finish();
 
 };

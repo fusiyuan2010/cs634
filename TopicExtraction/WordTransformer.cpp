@@ -54,6 +54,9 @@ std::string SimpleWordTransformer::Transform(const std::string &word) {
     result = word_to_upper(tmpbuf);
     delete[] tmpbuf;
 
+    if (result.size() == 1)
+        return "";
+
     if (function_words_.count(result) > 0)
         return "";
     /* 

@@ -25,6 +25,8 @@ void print_usage(int argc, char *argv[])
            "\t--term_graph <1|0> [default: 0],  do term similarity computing\n"
            "\t--lda <1|0> [default: 0],  do LDA(ecgs) computing\n"
            "\t--tfidf_fomula <1|2> [default: 1],  use what kind of tfidf_fomula\n", 
+           "\t--term_top <float_number >[default 10] select N top tfidf result as\n\t\t"
+           "LDA input(N = term_top if > 1, term_top * size() if < 1\n", 
            argv[0]);
 }
 
@@ -42,6 +44,7 @@ int main(int argc, char *argv[])
     int do_term_graph = 0;
     int tfidf_fomula = 1;
     int topic_num = 30;
+    double term_top = 10;
     
 
     static struct option long_options[] = {
@@ -56,6 +59,7 @@ int main(int argc, char *argv[])
             {"function_words",  required_argument, 0,  'i' },
             {"topic_num",  required_argument, 0,  'j' },
             {"lda",  required_argument, 0,  'k' },
+            {"term_top",  required_argument, 0,  'l' },
             {0,         0,                 0,  0 }
         };
 
@@ -96,6 +100,9 @@ int main(int argc, char *argv[])
             case 'k':
                 do_lda = atoi(optarg);
                 break;
+            case 'l':
+                term_top = atof(optarg);
+                break;
             default:
                 print_usage(argc, argv);
                 return 1;
@@ -118,6 +125,7 @@ int main(int argc, char *argv[])
     fprintf(f, "iter_max = %d\n", iter_max);
     fprintf(f, "iter_min = %d\n", iter_min);
     fprintf(f, "tfidf_fomula = %d\n", tfidf_fomula);
+    fprintf(f, "term_top = %.3f\n", term_top);
     fclose(f);
 
 
@@ -169,8 +177,8 @@ int main(int argc, char *argv[])
     }
 
     if (do_lda) {
-        LDA lda(dir, 50 / topic_num, 0.1, topic_num, 1, iter_max);
-        lda.Import(&article_handler);
+        LDA lda(dir, (double)50 / topic_num, 0.1, topic_num, 1, iter_max);
+        lda.Import(&article_handler, term_top);
         lda.Compute();
         lda.Finish();
     }

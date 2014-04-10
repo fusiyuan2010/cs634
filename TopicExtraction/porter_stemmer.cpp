@@ -322,7 +322,7 @@ int stem(char * p, int i, int j)
       algorithm. */
 
    step1ab(); /* step1c(); */ 
-   step2(); //step3(); //step4(); step5();
+   step2(); step3(); //step4(); step5();
    return k;
 }
 
