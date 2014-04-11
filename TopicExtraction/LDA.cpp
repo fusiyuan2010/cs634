@@ -412,12 +412,14 @@ void LDA::compute_phi()
     sort(id_p.begin(), id_p.end(), 
         [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
     max_sd = id_p[0].second;
+    for(int w = 0; w < V; w++) 
+        pwsd[w] = pow(pwsd[w] / max_sd, 3);
 
     char filename[128];
     snprintf(filename, 128, "%s/termsd.txt", dir);
     FILE *f = fopen(filename, "w");
     for(auto &c : id_p) {
-        fprintf(f, "%s\t\t%f == ", id_term_[c.first].c_str(), c.second);
+        fprintf(f, "%s\t\t%f == ", id_term_[c.first].c_str(), pwsd[c.first]);
         for(int k = 0; k < K; k++) 
             fprintf(f, "%d:%f\t", k, phi[k][c.first]);
         fprintf(f, "\n");
@@ -444,9 +446,9 @@ void LDA::save_model(int iter)
         double total_rate = 0;
         double sampled = 0;
         for(size_t i = 0; i < id_p.size() && i < 30; i++) {
-            double c1 = pwsd[id_p[i].first] / max_sd;
+            double c1 = pwsd[id_p[i].first];
             double c2 = phi[z][id_p[i].first] / pwsum[id_p[i].first];
-            total_rate += (c1 * 0.5  + c2 * 0.5) * phi[z][id_p[i].first];
+            total_rate += (c1 * 0.7  + c2 * 0.3) * phi[z][id_p[i].first];
             sampled += phi[z][id_p[i].first];
         } 
         total_rate /= sampled;
@@ -479,7 +481,7 @@ void LDA::save_model(int iter)
         std::vector<std::pair<int, double>> id_p, id_p2;
         for (int wi = 0; wi < V; wi ++) {
             id_p.push_back(make_pair(wi, 
-                        (phi[z][wi] / pwsum[wi] * 0.5 +  pwsd[wi] / max_sd * 0.5) * 100));
+                        phi[z][wi] * (phi[z][wi] / pwsum[wi] * 0.7 +  pwsd[wi] * 0.3) * 100));
             id_p2.push_back(make_pair(wi, phi[z][wi]));
         }
         sort(id_p.begin(), id_p.end(), 
@@ -493,7 +495,7 @@ void LDA::save_model(int iter)
                     id_term_[wi].c_str(),
                     id_p[i].second,
                     phi[z][wi],
-                    pwsd[wi] * 100 / max_sd,
+                    pwsd[wi] * 100,
                     phi[z][wi] / pwsum[wi] * 100,
                     
                     id_term_[id_p2[i].first].c_str(), phi[z][id_p2[i].first]
