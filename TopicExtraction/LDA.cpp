@@ -474,6 +474,7 @@ void LDA::save_model(int iter)
     }
 
     int rank = 0;
+    topic_rank.clear();
     for(std::multimap<double, int>::reverse_iterator zit = sorted_fea.rbegin();
             zit != sorted_fea.rend(); zit++, rank++) {
         int z = zit->second;
@@ -515,12 +516,14 @@ void LDA::save_model(int iter)
             fprintf(f, "\t\t%s:%f\n", ptrndata->docs[id_p[i].first]->title.c_str(), id_p[i].second);
         }
         fprintf(f, "\n");
+        topic_rank.push_back(z);
     }
 
     fclose(f);
 }
 
-LDA::LDA(const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters)
+LDA::LDA(const TFIDFArticleHandler *article_handler, const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters)
+    :ah(article_handler)
 {
     alpha = _alpha;
     beta = _beta;
@@ -532,13 +535,13 @@ LDA::LDA(const char *_dir, double _alpha, double _beta, int ntopics, int _gamma,
     liter = 0;
 }
 
-void LDA::Import(const TFIDFArticleHandler *article_handler, double TERMTOP)
+void LDA::Import(double TERMTOP)
 {
- 	ptrndata = new dataset(article_handler->size());
+ 	ptrndata = new dataset(ah->size());
 
     int term_id = 0;
-    for(size_t i = 0; i < article_handler->size(); i++) {
-        const std::multimap<double, std::string>& terms = article_handler->GetArticleTFIDFTerms(i);
+    for(size_t i = 0; i < ah->size(); i++) {
+        const std::multimap<double, std::string>& terms = ah->GetArticleTFIDFTerms(i);
         int limit = 0;
         document *doc = new document;
 
@@ -552,9 +555,9 @@ void LDA::Import(const TFIDFArticleHandler *article_handler, double TERMTOP)
 
         for(std::map<double, std::string>::const_reverse_iterator it = terms.rbegin();
                 it != terms.rend() && limit < doc->length; it++, limit++) {
-            auto it2 = (article_handler->GetArticleTermFreq(i)).find(it->second);
+            auto it2 = (ah->GetArticleTermFreq(i)).find(it->second);
             int w;
-            if (it2 != article_handler->GetArticleTermFreq(i).end()) 
+            if (it2 != ah->GetArticleTermFreq(i).end()) 
                 w = it2->second;
             else
                 w = 1;
@@ -572,7 +575,7 @@ void LDA::Import(const TFIDFArticleHandler *article_handler, double TERMTOP)
                 term_id++;
             }
         }
-        for(const auto & t : article_handler->GetTitle(i))
+        for(const auto & t : ah->GetTitle(i))
             doc->title += t + " ";
         ptrndata->add_doc(doc, i);
     }
@@ -589,6 +592,62 @@ void LDA::Compute()
 {
     init_est();
     estimate();
+    GetRelatedArticles();
+}
+
+void LDA::GetRelatedArticles()
+{
+    printf("Getting related Articles\n");
+    double **score_table = new double*[topic_rank.size()];
+    /* init score of doc in each topic */
+    for(size_t i = 0; i < topic_rank.size(); i++) {
+        score_table[i] = new double[ah->size()];
+        for(size_t j = 0; j < ah->size(); j++)
+            score_table[i][j] = 0;
+    }
+
+    for(size_t i = 0; i < ah->size(); i++) {
+        const auto& terms = ah->GetArticleTFIDFTerms(i);
+        int limit = terms.size() ;
+        for(auto it = terms.rbegin(); it != terms.rend() && --limit > 0; it++) {
+            int tid = term_id_.find(it->second)->second;
+            for(size_t j = 0; j < topic_rank.size(); j++) {
+                int z = topic_rank[j];
+                score_table[j][i] += phi[z][tid] * it->first;
+            }
+        }
+    }
+
+    char filename[128];
+    snprintf(filename, 128, "%s/related_articles.txt", dir);
+    FILE *f = fopen(filename, "w");
+
+    for(size_t i = 0; i < topic_rank.size(); i++) {
+        int z = topic_rank[i];
+        std::vector<int> ids;
+        for(size_t j = 0; j < ah->size(); j++)
+            ids.push_back(j);
+        
+        sort(ids.begin(), ids.end(), [&](const int& a, const int& b) {
+                    return score_table[i][a] > score_table[i][b];
+                });
+
+        fprintf(f, "Rank %d (topic %d)\n", i, z);
+        for(size_t j = 0; j < ids.size() && j < 50; j++) {
+            fprintf(f, "\t%d [%.7f]\t", j, score_table[i][ids[j]]);
+            for(const auto& s : ah->GetTitle(ids[j]))
+                fprintf(f, "%s ", s.c_str());
+            fprintf(f, "\n");
+        }
+    }
+    fclose(f);
+
+    for(size_t i = 0; i < topic_rank.size(); i++) {
+        delete[] score_table[i];
+    }
+    delete[] score_table;
+
+    printf("Done\n");
 }
 
 void LDA::Finish()

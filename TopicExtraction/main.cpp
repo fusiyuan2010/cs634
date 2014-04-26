@@ -24,7 +24,7 @@ void print_usage(int argc, char *argv[])
            "\t--topic_num <int_number> [default: 30],  latent topics assumed\n"
            "\t--term_graph <1|0> [default: 0],  do term similarity computing\n"
            "\t--lda <1|0> [default: 0],  do LDA(ecgs) computing\n"
-           "\t--tfidf_fomula <1|2> [default: 1],  use what kind of tfidf_fomula\n", 
+           "\t--tfidf_fomula <1|2> [default: 1],  use what kind of tfidf_fomula\n"
            "\t--term_top <float_number >[default 10] select N top tfidf result as\n\t\t"
            "LDA input(N = term_top if > 1, term_top * size() if < 1\n", 
            argv[0]);
@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
     }
 
     if (do_lda) {
-        LDA lda(dir, (double)50 / topic_num, 0.1, topic_num, 1, iter_max);
-        lda.Import(&article_handler, term_top);
+        LDA lda(&article_handler, dir, (double)50 / topic_num, 0.1, topic_num, 1, iter_max);
+        lda.Import(term_top);
         lda.Compute();
         lda.Finish();
     }

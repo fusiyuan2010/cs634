@@ -116,12 +116,16 @@ class LDA {
     double *pwsum;
     double *pwsd;
     double max_sd;
+    const TFIDFArticleHandler *ah;
+    std::vector<int> topic_rank;
 
+    void GetRelatedArticles();
 public:
-    LDA(const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters);
+    LDA(const TFIDFArticleHandler *article_handler, const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters);
 
-    void Import(const TFIDFArticleHandler *article_handler, double TERMTOP);
+    void Import(double TERMTOP);
     void Compute();
+
     void Export(TopicManager *tm);
     void Finish();
 
