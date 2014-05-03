@@ -110,6 +110,7 @@ class LDA {
 //    float compute_perplexity();
 //    void foldin(int m);
     void save_model(int iter);
+    void save_model_rank2(int iter);
 
     //Added By SiyuanFu
     /* weight on each topic per word*/
@@ -120,6 +121,7 @@ class LDA {
     std::vector<int> topic_rank;
 
     void GetRelatedArticles();
+    void FindSimilarTopic();
 public:
     LDA(const TFIDFArticleHandler *article_handler, const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters);
 

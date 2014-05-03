@@ -55,13 +55,14 @@ void TermGraph::Import(const TFIDFArticleHandler *article_handler) {
                     it2 != terms.rend() && ++limit2 != 30; it2++) {
                 if (it2->second == it1->second)
                     continue;
-                //int weight = it1->first * it2->first;
-                int weight = 1;
+                int weight = it1->first * it2->first;
+                //int weight = 1;
                 Add({it1->second, it2->second, weight});
                 Add({it2->second, it1->second, weight});
             }
             //freq_[it1->second] += it1->first * it1->first;
-            freq_[it1->second]++;
+            //freq_[it1->second]++;
+            freq_[it1->second] += it1->first;
         }
     }
 }

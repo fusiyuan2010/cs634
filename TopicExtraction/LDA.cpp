@@ -351,7 +351,7 @@ void LDA::estimate()
 				printf("Saving the model at iteration %d ...\n", liter);
 				compute_theta();
 				compute_phi();
-	            save_model(liter);
+	            //save_model(liter);
 				gettimeofday(&start, 0);
 			}
 		}
@@ -363,6 +363,7 @@ void LDA::estimate()
 	compute_phi();
 	liter--;
 	save_model(liter);
+	save_model_rank2(liter);
 }
 
 void LDA::compute_theta()
@@ -522,6 +523,95 @@ void LDA::save_model(int iter)
     fclose(f);
 }
 
+void LDA::save_model_rank2(int iter) 
+{
+    char filename[128];
+    snprintf(filename, 128, "%s/lda_rank2.txt", dir, iter);
+    FILE *f = fopen(filename, "w");
+
+    int rank = 0;
+    topic_rank.clear();
+
+    std::vector<double> psum_all;
+    for(int i = 0; i < V; i++) {
+        double psum = 0;
+        for(int j = 0; j < K; j++)
+            psum += phi[j][i];
+        psum_all.push_back(psum);
+    }
+
+    typedef std::pair<int, double> ScorePair;
+    std::vector<ScorePair> avg_simi;
+    for(int i = 0; i < K; i++) {
+        double simi_sum = 0;
+        
+        for(int j = 0; j < K; j++) {
+            double simi = 0;
+            double la = 0, lb = 0;
+            for(int k = 0; k < V; k++) {
+                double pik = phi[i][k] / psum_all[k];
+                double pjk = phi[j][k] / psum_all[k];
+                simi += pik * pjk;
+                la += pik * pik;
+                lb += pjk * pjk;
+            }
+            la = sqrt(la);
+            lb = sqrt(lb);
+            simi /= (la * lb);
+            simi_sum += simi;
+        }
+        avg_simi.push_back(make_pair(i, simi_sum / K));
+    }
+    sort(avg_simi.begin(), avg_simi.end(), [&](const ScorePair& m, const ScorePair& n){return m.second < n.second;});
+
+
+    fprintf(f, "%d docs, %d words\n\n", M, V);
+    for(auto &zit : avg_simi) {
+        int z = zit.first;
+        fprintf(f, "Rank:%d - Topic %2d ( innerw: %f ):\n", rank++, z, zit.second);
+        std::vector<std::pair<int, double>> id_p, id_p2;
+        for (int wi = 0; wi < V; wi ++) {
+            id_p.push_back(make_pair(wi, 
+                        phi[z][wi] * (phi[z][wi] / pwsum[wi] * 0.7 +  pwsd[wi] * 0.3) * 100));
+            id_p2.push_back(make_pair(wi, phi[z][wi]));
+        }
+        sort(id_p.begin(), id_p.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+        sort(id_p2.begin(), id_p2.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+        int twords = 0;
+        for(size_t i = 0; i < id_p.size() && twords < 20; i++) {
+            int wi = id_p[i].first;
+            fprintf(f, "\t\t%s:%f (raw: %f, pwsd:%.2f%%, %.2f%%) \t\t\t\t\t%s:%f\n",
+                    id_term_[wi].c_str(),
+                    id_p[i].second,
+                    phi[z][wi],
+                    pwsd[wi] * 100,
+                    phi[z][wi] / pwsum[wi] * 100,
+                    
+                    id_term_[id_p2[i].first].c_str(), phi[z][id_p2[i].first]
+                    );
+            twords++;
+        }
+        fprintf(f, "\n");
+        id_p.clear();
+
+        fprintf(f, "\tArticles:\n");
+        for (int di = 0; di < M; di ++) {
+            id_p.push_back(make_pair(di, theta[di][z]));
+        }
+        sort(id_p.begin(), id_p.end(), 
+                [](const std::pair<int, double>& a, const std::pair<int, double>& b){ return a.second > b.second;});
+        for(size_t i = 0; i < id_p.size() && i < 40; i++) {
+            fprintf(f, "\t\t%s:%f\n", ptrndata->docs[id_p[i].first]->title.c_str(), id_p[i].second);
+        }
+        fprintf(f, "\n");
+        topic_rank.push_back(z);
+    }
+
+    fclose(f);
+}
+
 LDA::LDA(const TFIDFArticleHandler *article_handler, const char *_dir, double _alpha, double _beta, int ntopics, int _gamma, int iters)
     :ah(article_handler)
 {
@@ -592,7 +682,74 @@ void LDA::Compute()
 {
     init_est();
     estimate();
+    FindSimilarTopic();
     GetRelatedArticles();
+}
+
+void LDA::FindSimilarTopic()
+{
+    printf("Getting Similar Topic\n");
+
+    std::vector<double> psum_all;
+    for(int i = 0; i < V; i++) {
+        double psum = 0;
+        for(int j = 0; j < K; j++)
+            psum += phi[j][i];
+        psum_all.push_back(psum);
+    }
+
+    char filename[128];
+    snprintf(filename, 128, "%s/similar_topic.txt", dir);
+    FILE *f = fopen(filename, "w");
+
+    typedef std::pair<int, double> ScorePair;
+    std::vector<ScorePair> *simi_all = new std::vector<ScorePair>[K];
+    std::vector<double> avg_simi;
+    for(int i = 0; i < K; i++) {
+        std::vector<ScorePair> l;
+        double simi_sum = 0;
+        
+        for(int j = 0; j < K; j++) {
+            double simi = 0;
+            int za = topic_rank[i];
+            int zb = topic_rank[j];
+            double la = 0, lb = 0;
+            for(int k = 0; k < V; k++) {
+                double pzak = phi[za][k] / psum_all[k];
+                double pzbk = phi[zb][k] / psum_all[k];
+                simi += pzak * pzbk;
+                la += pzak * pzak;
+                lb += pzbk * pzbk;
+            }
+            la = sqrt(la);
+            lb = sqrt(lb);
+            simi /= (la * lb);
+            l.push_back(make_pair(j, simi));
+            simi_sum += simi;
+        }
+        avg_simi.push_back(simi_sum / K);
+        simi_all[i] = std::move(l);
+    }
+
+    for(int i = 0; i < K; i++) {
+        fprintf(f, "Rank %d Topic %d (avg simi: %f)\n", i, topic_rank[i], avg_simi[i]);
+        std::vector<ScorePair> &l = simi_all[i];
+        for(auto &c : l) {
+            c.second *= c.second;
+            c.second /= avg_simi[c.first];
+            c.second /= avg_simi[i];
+        }
+
+        sort(l.begin(), l.end(), [&](const ScorePair& m, const ScorePair& n){return m.second > n.second;});
+
+        for(int j = 0; j < 10; j++) {
+            fprintf(f, "\t%d - Simiscore: %f Rank %d topic[%d]\n", j, l[j].second, l[j].first, topic_rank[l[j].first]);
+        }
+    }
+
+    delete[] simi_all;
+
+    fclose(f);
 }
 
 void LDA::GetRelatedArticles()
@@ -608,12 +765,12 @@ void LDA::GetRelatedArticles()
 
     for(size_t i = 0; i < ah->size(); i++) {
         const auto& terms = ah->GetArticleTFIDFTerms(i);
-        int limit = terms.size() ;
+        int limit = terms.size();
         for(auto it = terms.rbegin(); it != terms.rend() && --limit > 0; it++) {
             int tid = term_id_.find(it->second)->second;
             for(size_t j = 0; j < topic_rank.size(); j++) {
                 int z = topic_rank[j];
-                score_table[j][i] += phi[z][tid] * it->first;
+                score_table[j][i] += phi[z][tid] * it->first * pwsd[tid];
             }
         }
     }
